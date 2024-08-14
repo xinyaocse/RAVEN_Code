@@ -33,11 +33,11 @@ dwt = common.DWT()
 iwt = common.IWT()
 
 tf = transforms.Compose([transforms.Resize((224, 224)),
-                         transforms.ToTensor()])  # 标准化
+                         transforms.ToTensor()])
 
 checkpoint = torch.load("./checkpoints/{}/{}/{}_trained_checkpoint.pth".format(args.dataset, args.mode, args.model))
 state_dict = checkpoint['state_dict']
-# 确定模型维度
+# number of dataset class
 if args.dataset == "MNIST" or args.dataset == "CIFAR10":
     bits = 10
 if args.dataset == "Oxford5k":
@@ -102,31 +102,29 @@ elif args.model == "densenet121":
     model_feature.eval().to(device)
     print(model_feature)
 
-# 定义数据目录
+# dataset path
 data_dir = ''
 
-# 使用glob获取所有文件路径，并按照名称排序
 file_paths = sorted(glob.glob(os.path.join(data_dir, '*')))
 
-# 获取前50个文件的相对路径
+# top-50 path
 paths = file_paths[:50]
 ori_paths = ''
 number = 0
-# gallery检索
+# gallery retrieval
 train_data = torchvision.datasets.ImageFolder('./MNIST/retrieval_set', transform=tf)
 train_loader = torch.utils.data.DataLoader(train_data, batch_size=1, shuffle=False, pin_memory=True, drop_last=True)
 
 
 if __name__ == '__main__':
     totalTime = time.time()
-    # 得到目标图片
     X_target = load_image(paths[0])
     X_target = Variable(X_target, requires_grad=True)
     optim2 = torch.optim.Adam([X_target], lr=c.lr2)
     if c.pretrain:
         load(args.pre_model, INN_net)
         optim1.load_state_dict(optim_init)
-    # 取原始图片
+    # load original image
     data = load_image(ori_paths)
     cover = data.to(device)  # channels = 3
     cover_dwt_1 = dwt(cover).to(device)  # channels = 12
@@ -157,7 +155,7 @@ if __name__ == '__main__':
         g_loss = guide_loss(output_steg_1.cuda(), cover.cuda()).to(device)
         l_loss = guide_loss(output_step_low_2.cuda(), cover_dwt_low.cuda()).to(device)
         # loss_fn = torch.nn.MSELoss(reduction='mean')
-        total_features = None  # 创建一个变量用于累加特征向量
+        total_features = None
         for j in range(len(paths)):
             ori_feature = model_feature(load_image(paths[j])).to(device)
             # 累加特征向量
@@ -165,10 +163,10 @@ if __name__ == '__main__':
                 total_features = ori_feature
             else:
                 total_features = total_features + ori_feature
-        # 计算average feature
+        # calculate average feature
         if total_features is not None:
             average_feature = total_features / len(paths)
-        # 计算对抗样本的feature
+        # calculate adversarial feature
         adv_feature = model_feature(output_steg_1).to(device)
         resnet50_loss = guide_loss(average_feature, gem_adv_feature).to(device)
         # rank list loss

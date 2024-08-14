@@ -27,14 +27,14 @@ def load_data():
     if args.dataset == "MNIST":
         transform_train = transforms.Compose(
             [
-                transforms.Resize((224, 224)),  # 调整图像大小为224x224
+                transforms.Resize((224, 224)),
                 transforms.ToTensor(),
-                transforms.Lambda(lambda x: torch.cat([x, x, x], 0))  # 将灰度图像转换为三通道图像
+                transforms.Lambda(lambda x: torch.cat([x, x, x], 0))
             ])
     else:
         transform_train = transforms.Compose(
             [
-                transforms.Resize((224, 224)),  # 调整图像大小为224x224
+                transforms.Resize((224, 224)),
                 transforms.ToTensor(),
             ])
     train_data = torchvision.datasets.ImageFolder('./{}/{}-dataset/train'.format(args.dataset, args.mode),
@@ -43,7 +43,7 @@ def load_data():
     return train_loader
 
 
-def binary_output(dataloader, dev=device):
+def output(dataloader, dev=device):
     if args.model == "vgg16":
         model = torchvision.models.vgg16(pretrained=True)
         model.classifier[6] = nn.Linear(4096, dimension)
@@ -67,7 +67,7 @@ def binary_output(dataloader, dev=device):
         model.classifier = torch.nn.Linear(1024, dimension)
         model.load_state_dict(state_dict)
         model.eval()
-    # 得到模型
+
     net = model.to(dev)
     full_batch_output = torch.cuda.FloatTensor()
     full_batch_label = torch.cuda.LongTensor()
@@ -77,7 +77,6 @@ def binary_output(dataloader, dev=device):
             outputs, _ = net(inputs)
             full_batch_output = torch.cat((full_batch_output, outputs.data), 0)
             full_batch_label = torch.cat((full_batch_label, targets.data), 0)
-            # torch.round每个元素舍入到最近的整数得到0~1
         return torch.round(full_batch_output), full_batch_label
 
 
@@ -114,31 +113,3 @@ def evaluate(trn_binary, trn_label, tst_binary, tst_label):
     pbar.close()
     t_mAP = np.mean(AP)
     print("t-mAP:", t_mAP)
-
-
-if os.path.exists('./result/train_binary') and os.path.exists('./result/train_label') and \
-        os.path.exists('./result/test_binary') and os.path.exists('./result/test_label'):
-    train_binary = torch.load('./result/train_binary')
-    train_label = torch.load('./result/train_label')
-    test_binary = torch.load('./result/test_binary')
-    test_label = torch.load('./result/test_label')
-
-else:
-    trainloader, testloader = load_data()
-    train_binary, train_label = binary_output(trainloader)
-    test_binary, test_label = binary_output(testloader)
-    if not os.path.isdir('result'):
-        os.mkdir('result')
-    torch.save(train_binary, './result/train_binary')
-    torch.save(train_label, './result/train_label')
-    torch.save(test_binary, './result/test_binary')
-    torch.save(test_label, './result/test_label')
-
-train_binary = train_binary.cpu().numpy()
-train_binary = np.asarray(train_binary, np.int32)
-train_label = train_label.cpu().numpy()
-test_binary = test_binary.cpu().numpy()
-test_binary = np.asarray(test_binary, np.int32)
-test_label = test_label.cpu().numpy()
-
-evaluate(train_binary, train_label, test_binary, test_label)
