@@ -45,7 +45,7 @@ if args.dataset == "Oxford5k":
 if args.dataset == "Paris6k":
     bits = 12
 
-# 导入模型
+# input models
 if args.model == "vgg16":
     if args.mode == 'binary':
         model = torchvision.models.vgg16()
@@ -158,7 +158,7 @@ if __name__ == '__main__':
         total_features = None
         for j in range(len(paths)):
             ori_feature = model_feature(load_image(paths[j])).to(device)
-            # 累加特征向量
+            # Cumulative feature vector
             if total_features is None:
                 total_features = ori_feature
             else:
