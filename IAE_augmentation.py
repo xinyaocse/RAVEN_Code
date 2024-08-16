@@ -44,7 +44,6 @@ train_loader = torch.utils.data.DataLoader(train_data, batch_size=1, shuffle=Fal
 # such an query image
 cover = load_image(''./{}/train_data/query_image'.format(args.dataset)'').to(device)
 cover_feature = model_feature(cover)
-# 变量
 scores = []
 
 # adversarial radius
