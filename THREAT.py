@@ -44,8 +44,7 @@ if args.dataset == "Oxford5k":
     bits = 11
 if args.dataset == "Paris6k":
     bits = 12
-
-# input models
+# victim model
 if args.model == "vgg16":
     if args.mode == 'binary':
         model = torchvision.models.vgg16()
@@ -56,9 +55,9 @@ if args.model == "vgg16":
     dimension = 512
     model.load_state_dict(state_dict)
     model.eval().to(device)
-    model_feature = torch.nn.Sequential(*list(model.children())[0])
-    model_feature.eval().to(device)
-    print(model_feature)
+    vgg16_model_feature = torch.nn.Sequential(*list(model.children())[0])
+    vgg16_model_feature.eval().to(device)
+    print(vgg16_model_feature)
 
 elif args.model == "alexnet":
     if args.mode == 'binary':
@@ -70,9 +69,9 @@ elif args.model == "alexnet":
     dimension = 256
     model.load_state_dict(state_dict)
     model.eval().to(device)
-    model_feature = torch.nn.Sequential(*list(model.children())[0])
-    model_feature.eval().to(device)
-    print(model_feature)
+    alexnet_model_feature = torch.nn.Sequential(*list(model.children())[0])
+    alexnet_model_feature.eval().to(device)
+    print(alexnet_model_feature)
 
 elif args.model == "resnet50":
     if args.mode == 'binary':
@@ -84,9 +83,9 @@ elif args.model == "resnet50":
     dimension = 2048
     model.load_state_dict(state_dict)
     model.eval().to(device)
-    model_feature = torch.nn.Sequential(*list(model.children())[:-2])
-    model_feature.eval().to(device)
-    print(model_feature)
+    resnet50_model_feature = torch.nn.Sequential(*list(model.children())[:-2])
+    resnet50_model_feature.eval().to(device)
+    print(resnet50_model_feature)
 
 elif args.model == "densenet121":
     if args.mode == 'binary':
@@ -98,23 +97,18 @@ elif args.model == "densenet121":
     dimension = 1024
     model.load_state_dict(state_dict)
     model.eval().to(device)
-    model_feature = torch.nn.Sequential(*list(model.children())[:-1])
-    model_feature.eval().to(device)
-    print(model_feature)
+    densenet121_model_feature = torch.nn.Sequential(*list(model.children())[:-1])
+    densenet121_model_feature.eval().to(device)
+    print(densenet121_model_feature)
 
-# dataset path
-data_dir = ''
+# target image path
+data_dir = args.IAE_path
 
-file_paths = sorted(glob.glob(os.path.join(data_dir, '*')))
-
-# top-50 path
-paths = file_paths[:50]
-ori_paths = ''
-number = 0
+paths = file_paths[:random.randint(0,9)]
 # gallery retrieval
-train_data = torchvision.datasets.ImageFolder('./MNIST/retrieval_set', transform=tf)
+train_data = torchvision.datasets.ImageFolder('./{}/retrieval_set'.format{args.dataset}, transform=tf)
 train_loader = torch.utils.data.DataLoader(train_data, batch_size=1, shuffle=False, pin_memory=True, drop_last=True)
-
+number = target_image.class
 
 if __name__ == '__main__':
     totalTime = time.time()
@@ -130,9 +124,10 @@ if __name__ == '__main__':
     cover_dwt_1 = dwt(cover).to(device)  # channels = 12
     cover_dwt_low = cover_dwt_1.narrow(1, 0, c.channels_in).to(device)  # channels = 3
     save_image(cover, args.outputpath + '{}/cover.png'.format(args.model))
+    # RIEM augmentation
     for i_epoch in range(c.epochs):
         #################
-        #     train:    #
+        #             train:         #
         #################
         CGT = X_target.to(device)
         save_image(CGT, args.outputpath + '{}/CGT.png'.format(args.model))
@@ -150,7 +145,7 @@ if __name__ == '__main__':
         eta = torch.clamp(output_steg_1 - cover, min=-args.eps, max=args.eps)
         output_steg_1 = torch.clamp(cover + eta, min=0, max=1)
         #################
-        #     loss:     #
+        #             loss:           #
         #################
         g_loss = guide_loss(output_steg_1.cuda(), cover.cuda()).to(device)
         l_loss = guide_loss(output_step_low_2.cuda(), cover_dwt_low.cuda()).to(device)
@@ -158,7 +153,6 @@ if __name__ == '__main__':
         total_features = None
         for j in range(len(paths)):
             ori_feature = model_feature(load_image(paths[j])).to(device)
-            # Cumulative feature vector
             if total_features is None:
                 total_features = ori_feature
             else:
@@ -168,31 +162,38 @@ if __name__ == '__main__':
             average_feature = total_features / len(paths)
         # calculate adversarial feature
         adv_feature = model_feature(output_steg_1).to(device)
-        resnet50_loss = guide_loss(average_feature, gem_adv_feature).to(device)
+        resnet50_loss = guide_loss(average_feature, adv_feature).to(device)
+        DenseNet_loss = guide_loss(average_feature, adv_feature).to(device)
+        AlexNet_loss = guide_loss(average_feature, adv_feature).to(device)
         # rank list loss
         scores = []
+        queryscores = []
         for j, data in enumerate(train_loader):
             image, label = data[0].to(device), data[1].to(device)
             list_feature = model_feature(image).to(device)
+            query_feature = model_feature(cover).to(device)
             score = guide_loss(list_feature, adv_feature).to(device)
+            queryscore = guide_loss(list_feature, query_feature).to(device)
             scores.append([label, score.item()])
-
+            queryscores.append([label, queryscore.item()])
         scores.sort(key=lambda x: x[1])
-        vector1 = torch.zeros(1, 10).to(device)
-
-        for index in range(10):
+        vector1 = torch.zeros(1, args.k).to(device)
+        query_vector=torch.zeros(1, args.k).to(device)
+        for index in range(args.k):
             labels, _ = scores[index]
             if labels == number:
                 vector1[0, index] = 1
-        print(vector1)
-        vector2 = torch.ones(1, 10).to(device)
+        for index in range(args.k):
+            labels, _ = queryscores[index]
+            if labels == number:
+	query_vector[0, index] = 1
+        vector2 = torch.ones(1, args.k).to(device)
+        listloss = NDCG(vector1.tolist(), vector2.tolist(),args.k) - NDCG(vector1.tolist(), query_vector.tolist(),args.k)
 
-        hamloss = (vector2.sum() - vector1.sum()).to(device)
-        print("hamloss:", hamloss.item())
         total_loss = c.lamda_guide * g_loss + c.lamda_low_frequency * l_loss \
-                     + c.lamda_per * (0.3*(resnet50_loss + hamloss) + 0.3*(Alexnet_loss + hamloss) + 0.4*(DenseNet_loss + hamloss))
+                     + c.lamda_per * (0.3*resnet50_loss + 0.3*Alexnet_loss + 0.4*DenseNet_loss) - 0.3*listloss  
         #################
-        #     Exit:     #
+        #            Exit:            #
         #################
         if i_epoch >= c.epochs - 1:
             save_image(output_steg_1, args.outputpath + '{}/result.png'.format(args.model))
@@ -200,7 +201,7 @@ if __name__ == '__main__':
             save_image(output_r, args.outputpath + '{}/r.png'.format(args.model))
             break
         #################
-        #   Backward:   #
+        #        Backward:      #
         #################
         optim1.zero_grad()
         optim2.zero_grad()
