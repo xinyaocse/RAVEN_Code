@@ -101,6 +101,20 @@ elif args.model == "densenet121":
     densenet121_model_feature.eval().to(device)
     print(densenet121_model_feature)
 
+elif args.model == "ViT"
+    if args.mode == 'binary':
+        model = torchvision.models.vit_l_32()
+        model.classifier = nn.Linear(512, 2)
+    if args.mode == 'multiple':
+        model = torchvision.models.vit_l_32()
+        model.classifier = nn.Linear(512, bits)
+    dimension = 512
+    model.load_state_dict(state_dict)
+    model.eval().to(device)
+    ViT_model_feature = torch.nn.Sequential(*list(model.children())[:-1])
+    ViT_model_feature.eval().to(device)
+    print(ViT_model_feature)
+
 # target image path
 data_dir = args.IAE_path
 
